@@ -1,6 +1,7 @@
 import copy
 import itertools
 import json
+import os
 from datetime import datetime
 
 import modules.scripts as scripts
@@ -699,7 +700,7 @@ class Script(scripts.Script):
                                                  choices=["Keep Original", "Fix"], value="Keep Original", type="value", interactive=True)
 
                 output_format_radio = gr.Radio(label="Output Format",
-                                               choices=[".ckpt", ".safetensors"], value=".ckpt", type="value",
+                                               choices=[".ckpt", ".safetensors"], value=".safetensors", type="value",
                                                interactive=True)
             with gr.Row():
                 output_recipe_checkbox = gr.Checkbox(label="Output Recipe", value=True, interactive=True)
@@ -732,6 +733,15 @@ class Script(scripts.Script):
 
         return process_script_params
 
+    @staticmethod
+    def extra_params(args):
+        weights = ','.join([str(s) for s in args[:27]])
+        return {
+            'BlockMerge Model A': os.path.split(shared.sd_model.sd_model_checkpoint)[-1],
+            'BlockMerge Model B': os.path.split(args[27])[-1],
+            'BlockMerge Recipe': weights
+        }
+
     def process(self, p, *args):
         injector_enabled = shared.UNBMSettingsInjector.enabled
         gui_weights = shared.UNBMSettingsInjector.weights if injector_enabled else args[:27]
@@ -741,4 +751,7 @@ class Script(scripts.Script):
             return
         if not shared.UNetBManager:
             shared.UNetBManager = UNetStateManager(shared.sd_model.model.diffusion_model)
+
+        blockMergeExif = self.extra_params(args)
+        p.extra_generation_params.update(blockMergeExif)
         shared.UNetBManager.model_state_apply_modified_blocks(gui_weights, modelB)
