@@ -15,7 +15,6 @@ from scripts.mbw_util.preset_weights import PresetWeights
 import torch
 from natsort import natsorted
 from modules.script_callbacks import on_before_ui
-from functools import partial
 
 from pathlib import Path
 import safetensors.torch
@@ -452,7 +451,6 @@ class Script(scripts.Script):
         return scripts.AlwaysVisible
 
     def ui(self, is_img2img):
-        eid = partial(elem_id, n=0, is_img2img=is_img2img)
         process_script_params = []
         with gr.Accordion('Runtime Block Merge', open=False):
             hidden_title = gr.Textbox(label='Runtime Block Merge Title', value='Runtime Block Merge',
@@ -466,34 +464,18 @@ class Script(scripts.Script):
                 with gr.Row():
                     with gr.Column():
                         dd_preset_weight = gr.Dropdown(label="Preset Weights",
-                                                       elem_id=eid("dd_preset_weight"),
+                                                       elem_id="dd_preset_weight",
                                                        choices=presetWeights.get_preset_name_list())
                         config_paste_button = gr.Button(value='Generate Merge Block Weighted Config\u2199\ufe0f',
                                                         elem_id="rbm_config_paste",
                                                         title="Paste Current Block Configs Into Weight Command. Useful for copying to \"Merge Block Weighted\" extension")
                         weight_command_textbox = gr.Textbox(label="Weight Command",
                                                             placeholder="Input weight command, then press enter. \nExample: base:0.5, in00:1, out09:0.8, time_embed:0, out:0")
-                        # weight_config_textbox_readonly = gr.Textbox(label="Weight Config For Merge Block Weighted", interactive=False)
 
-                        # btn_apply_block_weight_from_txt = gr.Button(value="Apply block weight from text")
-                        # with gr.Row():
-                        #     sl_base_alpha = gr.Slider(label="base_alpha", minimum=0, maximum=1, step=0.01, value=0)
-                        #     chk_verbose_mbw = gr.Checkbox(label="verbose console output", value=False)
-                        # with gr.Row():
-                        #     with gr.Column(scale=3):
-                        #         with gr.Row():
-                        #             chk_save_as_half = gr.Checkbox(label="Save as half", value=False)
-                        #             chk_save_as_safetensors = gr.Checkbox(label="Save as safetensors", value=False)
-                        # with gr.Column(scale=4):
-                        #     radio_position_ids = gr.Radio(label="Skip/Reset CLIP position_ids",
-                        #                                   choices=["None", "Skip", "Force Reset"], value="None",
-                        #                                   type="index")
                 with gr.Row():
-                    # model_A = gr.Dropdown(label="Model A", choices=sd_models.checkpoint_tiles())
                     model_B = gr.Dropdown(label="Model B", choices=sd_models.checkpoint_tiles())
                     refresh_button = gr.Button(variant='tool', value='\U0001f504', elem_id='rbm_modelb_refresh')
 
-                    # txt_model_O = gr.Text(label="Output Model Name")
                 with gr.Row():
                     sl_TIME_EMBED = gr.Slider(label="TIME_EMBED", minimum=0, maximum=1, step=0.01, value=0)
                     sl_OUT = gr.Slider(label="OUT", minimum=0, maximum=1, step=0.01, value=0)
@@ -566,12 +548,6 @@ class Script(scripts.Script):
                 shared.UNetBManager.restore_original_unet()
                 shared.UNetBManager.unload_all()
                 return None, False, gr.update(interactive=True), gr.update(visible=False), gr.update(visible=False)
-
-
-            # for slider in sl_ALL:
-            #     # slider.change(fn=handle_weight_change, inputs=sl_ALL, outputs=sl_ALL)
-            #     slider.change(fn=handle_weight_change, inputs=sl_ALL, outputs=[weight_config_textbox_readonly])
-
 
             def on_weight_command_submit(command_str, *current_weights):
                 weight_list = parse_weight_str_to_list(command_str, list(current_weights))
@@ -749,24 +725,25 @@ class Script(scripts.Script):
         return process_script_params
 
     @staticmethod
-    def extra_params(args):
-        weights = ','.join([str(s) for s in args[:27]])
+    def extra_params(weights, model_b):
+        weights = ','.join([str(s) for s in weights])
         return {
             'BlockMerge Model A': os.path.split(shared.sd_model.sd_model_checkpoint)[-1],
-            'BlockMerge Model B': os.path.split(args[27])[-1],
+            'BlockMerge Model B': os.path.split(model_b)[-1],
             'BlockMerge Recipe': weights
         }
 
     @staticmethod
     def on_before_ui():
-        def set_value(p, x, xs, *, field: str):
-            if not hasattr(p, "runtime_block_merge_xyz"):
-                p.runtime_block_merge_xyz = {}
-            p.runtime_block_merge_xyz[field] = x
-
-            if field == "dd_preset_weight":
-                shared.UNBMSettingsInjector.weights = tuple(map(float, presetWeights.find_weight_by_name(x).split(",")))
-
+        def set_value(field):
+            def set_value_(p, x, xs):
+                if field == "xyz_presets":
+                    shared.UNBMSettingsInjector.weights = tuple(map(float, presetWeights.find_weight_by_name(x).split(",")))
+                if field == "xyz_weights":
+                    print("X value: ", x)
+                    shared.UNBMSettingsInjector.weights = tuple(map(float,x.split(",")))
+            return set_value_
+        
         try:
             xyz_grid = None
             for script in scripts.scripts_data:
@@ -781,15 +758,21 @@ class Script(scripts.Script):
 
             axis = [
                 xyz_grid.AxisOption(
-                    "[Runtime Block Merge] Presets",
+                    "[RuntimeBlockMerge] Presets",
                     str,
-                    partial(set_value, field="dd_preset_weight"),
+                    set_value("xyz_presets"),
                     choices=lambda: preset_list,
+                ),
+                xyz_grid.AxisOption(
+                    "[RuntimeBlockMerge] Weights",
+                    str,
+                    set_value("xyz_weights")
                 ),
             ]
 
-            if not any(x.label.startswith("[Runtime Block Merge]") for x in xyz_grid.axis_options):
+            if not any(x.label.startswith("[RuntimeBlockMerge]") for x in xyz_grid.axis_options):
                 xyz_grid.axis_options.extend(axis)
+                
         except Exception:
             error = traceback.format_exc()
             print(
@@ -798,22 +781,35 @@ class Script(scripts.Script):
             )
 
     def process(self, p, *args):
-
-        if shared.UNBMSettingsInjector.weights:
+        
+        if hasattr(shared.UNBMSettingsInjector, "weights"):
             weight_list = list(shared.UNBMSettingsInjector.weights)
-            weight_list.append(args[25])
-            weight_list.append(args[26])
+            print("args: ", args)
+            print("len", len(weight_list))
+            
+            while len(weight_list) < 25:
+                weight_list.append(0)
+            if len(weight_list) > 27:
+                weight_list = weight_list[:27]
+                
+            if len(weight_list) < 27:
+                if len(weight_list) < 26:
+                    weight_list.append(args[25]) # add time_embed layer if missing
+                weight_list.append(args[26]) # add out layer if missing
+                
             shared.UNBMSettingsInjector.weights = tuple(weight_list)
 
-        gui_weights = shared.UNBMSettingsInjector.weights if shared.UNBMSettingsInjector.weights else args[:27]
+        gui_weights = shared.UNBMSettingsInjector.weights if hasattr(shared.UNBMSettingsInjector, "weights") else args[:27]
+        print("gui_weights: ", gui_weights)
         model_b =  args[27]
-
-        shared.UNBMSettingsInjector.weights=False
+        
+        if hasattr(shared.UNBMSettingsInjector, "weights"):
+            del shared.UNBMSettingsInjector.weights
 
         if not shared.UNetBManager:
             shared.UNetBManager = UNetStateManager(shared.sd_model.model.diffusion_model)
 
-        blockMergeExif = self.extra_params(args)
+        blockMergeExif = self.extra_params(gui_weights, args[27])
         p.extra_generation_params.update(blockMergeExif)
         shared.UNetBManager.model_state_apply_modified_blocks(gui_weights, model_b)
 
