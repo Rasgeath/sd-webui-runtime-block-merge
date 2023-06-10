@@ -35,6 +35,9 @@ class PresetWeights():
     def get_preset_name_list(self):
         return [k for k in self.presets.keys()]
 
+    def get_presets(self):
+        return self.presets
+
     def find_weight_by_name(self, preset_name=""):
         if preset_name and preset_name != "" and preset_name in self.presets.keys():
             return self.presets.get(preset_name, ",".join(["0.5" for _ in range(25)]))
