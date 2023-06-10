@@ -14,7 +14,7 @@ from modules import sd_models, shared, devices
 from scripts.mbw_util.preset_weights import PresetWeights
 import torch
 from natsort import natsorted
-from sd_webui import scripts, script_callbacks
+from modules.script_callbacks import on_before_ui
 from functools import partial
 
 from pathlib import Path
@@ -817,4 +817,4 @@ class Script(scripts.Script):
         p.extra_generation_params.update(blockMergeExif)
         shared.UNetBManager.model_state_apply_modified_blocks(gui_weights, model_b)
 
-script_callbacks.on_before_ui(Script.on_before_ui)
+on_before_ui(Script.on_before_ui)
