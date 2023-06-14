@@ -328,7 +328,7 @@ class Script(scripts.Script):
 
             shared.opts.onchange("sd_model_checkpoint",
                                  wrap_queued_call(reload_modelA_checkpoint), call=False)
-
+        
         if shared.UNBMSettingsInjector is None:
             shared.UNBMSettingsInjector = SettingsInjector()
 

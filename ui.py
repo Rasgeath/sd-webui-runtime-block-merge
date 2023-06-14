@@ -6,27 +6,43 @@ import safetensors.torch
 import torch
 from pathlib import Path
 
+## TODO: Handle custom presets without names
+            
+def format_preset(presets): # convert preset tuple to string for the textArea
+    formated = ''
+    for key, values in presets.items():
+        formated += key + ':' + ''.join(values) + '\n'
+    return formated
+
 def adui(presetWeights):
     process_script_params = []
-    with gr.Accordion('Runtime Block Merge', open=False):
-        hidden_title = gr.Textbox(label='Runtime Block Merge Title', value='Runtime Block Merge',
-                                    visible=False, interactive=False)
+    with gr.Accordion('Runtime Block Merge', open=False, elem_id="rbm_main_accordion"):
         with gr.Row():
             enabled = gr.Checkbox(label='Enable', value=False, interactive=False)
             unload_button = gr.Button(value='Unload and Disable', elem_id="rbm_unload", visible=False)
+            
         experimental_range_checkbox = gr.Checkbox(label='Enable Experimental Range', value=False)
         force_cpu_checkbox = gr.Checkbox(label='Force CPU (Max Precision)', value=True, interactive=True)
         with gr.Column():
-            with gr.Row():
-                with gr.Column():
-                    dd_preset_weight = gr.Dropdown(label="Preset Weights",
-                                                    elem_id="dd_preset_weight",
-                                                    choices=presetWeights.get_preset_name_list())
-                    config_paste_button = gr.Button(value='Generate Merge Block Weighted Config\u2199\ufe0f',
-                                                    elem_id="rbm_config_paste",
-                                                    title="Paste Current Block Configs Into Weight Command. Useful for copying to \"Merge Block Weighted\" extension")
-                    weight_command_textbox = gr.Textbox(label="Weight Command",
-                                                        placeholder="Input weight command, then press enter. \nExample: base:0.5, in00:1, out09:0.8, time_embed:0, out:0")
+            dd_preset_weight = gr.Dropdown(label="Preset Weights",
+                                            elem_id="dd_preset_weight",
+                                            choices=presetWeights.get_preset_name_list())
+            config_paste_button = gr.Button(value='Generate Merge Block Weighted Config\u2199\ufe0f',
+                                            elem_id="rbm_config_paste",
+                                            title="Paste Current Block Configs Into Weight Command. Useful for copying to \"Merge Block Weighted\" extension")
+
+            with gr.Accordion("Custom Presets", open=False):
+                with gr.Row():
+                    custom_presets_textbox = gr.TextArea(label="", 
+                                                     visible = True, 
+                                                     interactive =True, 
+                                                     lines = len(presetWeights.get_custom_presets().items()) + 1 if len(presetWeights.get_custom_presets().items()) + 1 <15 else 15,
+                                                     value = format_preset(presetWeights.get_custom_presets()), 
+                                                     placeholder = "You can add custom presets using the format name:IN_00,IN_01,etc...")
+                    reload_presets_button = gr.Button(variant='tool', value='\U0001f504', elem_id='rbm_modelb_refresh')
+                    
+                save_custom_presets_button = gr.Button(value='Save custom presets', visible=True)
+            weight_command_textbox = gr.Textbox(label="Weight Command", placeholder="Input weight command, then press enter. \nExample: base:0.5, in00:1, out09:0.8, time_embed:0, out:0")
 
             with gr.Row():
                 model_B = gr.Dropdown(label="Model B", choices=sd_models.checkpoint_tiles())
@@ -86,10 +102,6 @@ def adui(presetWeights):
             sl_OUT_06, sl_OUT_07, sl_OUT_08, sl_OUT_09, sl_OUT_10, sl_OUT_11]
         sl_ALL_nat = [*sl_INPUT, *sl_MID, sl_OUT, *sl_OUTPUT, sl_TIME_EMBED]
         sl_ALL = [*sl_INPUT, *sl_MID, *sl_OUTPUT, sl_TIME_EMBED, sl_OUT]
-
-
-
-
 
         def handle_modelB_load(modelB, force_cpu_checkbox, *slALL):
             if modelB is None:
@@ -184,8 +196,15 @@ def adui(presetWeights):
             else:
                 # parse as list
                 _list = [x.strip() for x in weightstr.split(",")]
-                if len(_list) != 25 and len(_list) != 27:
-                    return None
+                
+                if len(_list) != 25 and len(_list) != 27: # Handle incomplete or too long weight lists
+                    if len(_list) > 27:
+                        _list = _list[:27]
+                        print("[Block Merge Warning] Too many weights. The additional values won't be used.")
+                    else:
+                        while len(_list) != 25 and len(_list) != 27:
+                            _list.append('0')
+                        print("[Block Merge Warning] Incomplete weights. The missing values have been set to 0.")
                 validated_float_weight_list = []
                 for x in _list:
                     try:
@@ -252,21 +271,26 @@ def adui(presetWeights):
         with gr.Row():
             output_recipe_checkbox = gr.Checkbox(label="Output Recipe", value=True, interactive=True)
 
-
-        # with gr.Row():
-        #     save_snapshot_checkbox = gr.Checkbox(label="Save Snapshot", value=False)
         with gr.Row():
             save_checkpoint_name_textbox = gr.Textbox(label="New Checkpoint Name")
             save_checkpoint_button = gr.Button(value="Save Runtime Checkpoint", elem_id="mbw_save_checkpoint_button", variant='primary', interactive=True, visible=False, )
-
 
         def on_change_force_cpu(force_cpu_flag):
             if not force_cpu_flag:
                 return gr.update(choices=["Runtime Snapshot"], value="Runtime Snapshot")
             else:
                 return gr.update(choices=["Max Precision", "Runtime Snapshot"], value="Max Precision")
-
-
+            
+        def save_custom_presets(values): # Save content from the custom presets textArea
+            presetWeights.save_custom_presets(values)
+            return gr.update(value="", choices=presetWeights.get_preset_name_list())
+            
+        def reload_presets():
+            presetWeights.load_presets()
+            formated = format_preset(presetWeights.get_custom_presets())
+            lines = len(presetWeights.get_custom_presets().items()) + 1 if len(presetWeights.get_custom_presets().items()) + 1 <15 else 15
+            return gr.update(value=formated, lines = lines), gr.update(value="", choices=presetWeights.get_preset_name_list())
+        
         save_checkpoint_button.click(
             fn=on_save_checkpoint,
             inputs=[output_mode_radio, position_id_fix_radio, output_format_radio, save_checkpoint_name_textbox, output_recipe_checkbox, *sl_ALL_nat, *sl_ALL],
@@ -277,7 +301,9 @@ def adui(presetWeights):
         model_B.change(fn=handle_modelB_load, inputs=[model_B, force_cpu_checkbox, *sl_ALL_nat],
                         outputs=[model_B, enabled, force_cpu_checkbox, save_checkpoint_button, unload_button])
         unload_button.click(fn=handle_unload, inputs=[], outputs=[model_B, enabled, force_cpu_checkbox, save_checkpoint_button, unload_button])
-
+        save_custom_presets_button.click(fn=save_custom_presets, inputs=[custom_presets_textbox], outputs=[dd_preset_weight])
+        reload_presets_button.click(fn=reload_presets, inputs=None, outputs=[custom_presets_textbox, dd_preset_weight])
+                
     return process_script_params
 
 def on_save_checkpoint(output_mode_radio, position_id_fix_radio, output_format_radio, save_checkpoint_name, output_recipe_checkbox, *weights,
