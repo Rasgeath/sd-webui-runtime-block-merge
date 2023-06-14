@@ -2,3 +2,4 @@ scripts/__pycache__/
 scripts/mbw_util/__pycache__/
 __pycache__/
 .vscode/
+csv/custom_preset.tsv
