@@ -27,9 +27,6 @@ def adui(presetWeights):
             dd_preset_weight = gr.Dropdown(label="Preset Weights",
                                             elem_id="dd_preset_weight",
                                             choices=presetWeights.get_preset_name_list())
-            config_paste_button = gr.Button(value='Generate Merge Block Weighted Config\u2199\ufe0f',
-                                            elem_id="rbm_config_paste",
-                                            title="Paste Current Block Configs Into Weight Command. Useful for copying to \"Merge Block Weighted\" extension")
 
             with gr.Accordion("Custom Presets", open=False):
                 with gr.Row():
@@ -42,6 +39,10 @@ def adui(presetWeights):
                     reload_presets_button = gr.Button(variant='tool', value='\U0001f504', elem_id='rbm_modelb_refresh')
                     
                 save_custom_presets_button = gr.Button(value='Save custom presets', visible=True)
+                
+            config_paste_button = gr.Button(value='Generate Merge Block Weighted Config\u2199\ufe0f',
+                                            elem_id="rbm_config_paste",
+                                            title="Paste Current Block Configs Into Weight Command. Useful for copying to \"Merge Block Weighted\" extension")
             weight_command_textbox = gr.Textbox(label="Weight Command", placeholder="Input weight command, then press enter. \nExample: base:0.5, in00:1, out09:0.8, time_embed:0, out:0")
 
             with gr.Row():
