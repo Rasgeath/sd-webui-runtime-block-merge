@@ -7,6 +7,10 @@ import torch
 from pathlib import Path
 
 ## TODO: Handle custom presets without names
+## TODO: update xyz presets when saving
+## TODO: see if I can remove the needs for quotes for xyz weights
+## TODO: fix M00 layer being showed on top sometime
+
             
 def format_preset(presets): # convert preset tuple to string for the textArea
     formated = ''
@@ -320,10 +324,13 @@ def on_save_checkpoint(output_mode_radio, position_id_fix_radio, output_format_r
     loaded_sd_model_path = Path(shared.sd_model.sd_model_checkpoint)
     model_ext = loaded_sd_model_path.suffix
     if model_ext == '.ckpt':
-
         model_A_raw_state_dict = torch.load(shared.sd_model.sd_model_checkpoint, map_location='cpu')
+        
         if 'state_dict' in model_A_raw_state_dict:
             model_A_raw_state_dict = model_A_raw_state_dict['state_dict']
+            if 'state_dict' in model_A_raw_state_dict: # Dirty fix for some models having empty state_dict causing an error on save
+                del model_A_raw_state_dict['state_dict']
+        
     elif model_ext == '.safetensors':
         model_A_raw_state_dict = safetensors.torch.load_file(shared.sd_model.sd_model_checkpoint, device="cpu")
     save_checkpoint_path = Path(shared.sd_model.sd_model_checkpoint).parent / save_checkpoint_namewext
