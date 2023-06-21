@@ -82,8 +82,7 @@ def adui(presetWeights):
                     gr.Slider(visible=False)
                     gr.Slider(visible=False)
                     gr.Slider(visible=False)
-                    sl_M_00 = gr.Slider(label="M00", minimum=0, maximum=1, step=0.01, value=0.5,
-                                        elem_id="mbw_sl_M00")
+                    sl_M_00 = gr.Slider(label="M00", minimum=0, maximum=1, step=0.01, value=0.5, elem_id="rbm_sl_M00")
                 with gr.Column(min_width=100):
                     sl_OUT_11 = gr.Slider(label="OUT11", minimum=0, maximum=1, step=0.01, value=0.5)
                     sl_OUT_10 = gr.Slider(label="OUT10", minimum=0, maximum=1, step=0.01, value=0.5)
@@ -311,8 +310,7 @@ def adui(presetWeights):
                 
     return process_script_params
 
-def on_save_checkpoint(output_mode_radio, position_id_fix_radio, output_format_radio, save_checkpoint_name, output_recipe_checkbox, *weights,
-                        ):
+def on_save_checkpoint(output_mode_radio, position_id_fix_radio, output_format_radio, save_checkpoint_name, output_recipe_checkbox, *weights,):
     current_weights_nat = weights[:27]
 
     weights_output_recipe = weights[27:]
@@ -323,6 +321,7 @@ def on_save_checkpoint(output_mode_radio, position_id_fix_radio, output_format_r
     save_checkpoint_namewext = save_checkpoint_name + output_format_radio
     loaded_sd_model_path = Path(shared.sd_model.sd_model_checkpoint)
     model_ext = loaded_sd_model_path.suffix
+    
     if model_ext == '.ckpt':
         model_A_raw_state_dict = torch.load(shared.sd_model.sd_model_checkpoint, map_location='cpu')
         
@@ -341,11 +340,9 @@ def on_save_checkpoint(output_mode_radio, position_id_fix_radio, output_format_r
     elif output_mode_radio == 'Max Precision':
         snapshot_state_dict = shared.UNetBManager.model_state_construct(current_weights_nat)
 
-    snapshot_state_dict_prefixed = {'model.diffusion_model.' + key: value for key, value in
-                                    snapshot_state_dict.items()}
+    snapshot_state_dict_prefixed = {'model.diffusion_model.' + key: value for key, value in snapshot_state_dict.items()}
     if not set(snapshot_state_dict_prefixed.keys()).issubset(set(model_A_raw_state_dict.keys())):
-        print(
-            'warning: snapshot state_dict keys are not subset of model A state_dict keys, possible structural deviation')
+        print('warning: snapshot state_dict keys are not subset of model A state_dict keys, possible structural deviation')
 
     combined_state_dict = {**model_A_raw_state_dict, **snapshot_state_dict_prefixed}
     if position_id_fix_radio == 'Fix':
